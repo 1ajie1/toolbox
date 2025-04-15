@@ -68,7 +68,7 @@ func Ping(host string, options PingOptions, callback func(string)) (PingResult, 
 	}
 
 	// 启动命令
-	if err := cmd.Start(); err != nil {
+	if err = cmd.Start(); err != nil {
 		result.Success = false
 		result.Error = fmt.Sprintf("启动ping命令失败: %v", err)
 		return result, err

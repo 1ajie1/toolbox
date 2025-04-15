@@ -28,9 +28,10 @@ var portScanCmd = &cobra.Command{
 		endPort, _ := cmd.Flags().GetInt("end-port")
 		commonPorts, _ := cmd.Flags().GetBool("common-ports")
 		timeout, _ := cmd.Flags().GetInt("timeout")
+		concurrency, _ := cmd.Flags().GetInt("concurrency")
 
 		timeoutDuration := time.Duration(timeout) * time.Millisecond
-		executePortScan(host, startPort, endPort, commonPorts, timeoutDuration)
+		executePortScan(host, startPort, endPort, commonPorts, timeoutDuration, concurrency)
 	},
 }
 
@@ -42,20 +43,21 @@ func init() {
 	portScanCmd.Flags().IntP("end-port", "e", 1024, "结束端口号")
 	portScanCmd.Flags().BoolP("common-ports", "c", false, "仅扫描常见端口")
 	portScanCmd.Flags().IntP("timeout", "t", 1000, "连接超时(毫秒)")
+	portScanCmd.Flags().IntP("concurrency", "C", 100, "并发连接数")
 }
 
 // executePortScan 执行端口扫描
-func executePortScan(host string, startPort, endPort int, commonPorts bool, timeout time.Duration) {
+func executePortScan(host string, startPort, endPort int, commonPorts bool, timeout time.Duration, concurrency int) {
 	fmt.Printf("正在扫描 %s 的端口...\n", host)
 
 	var result netdiag.PortScanResult
 
 	if commonPorts {
 		fmt.Println("仅扫描常见端口...")
-		result = netdiag.ScanCommonPorts(host, timeout)
+		result = netdiag.ScanCommonPorts(host, timeout, concurrency)
 	} else {
 		fmt.Printf("扫描端口范围: %d-%d...\n", startPort, endPort)
-		result = netdiag.ScanPorts(host, startPort, endPort, timeout)
+		result = netdiag.ScanPorts(host, startPort, endPort, timeout, concurrency)
 	}
 
 	if result.Error != "" {

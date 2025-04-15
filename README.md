@@ -38,47 +38,6 @@ go build -o netdiag-gui cmd/gui/main.go
 
 可以从[发布页面](https://github.com/yourusername/tool-box/releases)下载预编译的二进制文件。
 
-## 使用方法
-
-### 命令行版本
-
-命令行版本使用Cobra框架实现，提供了子命令方式的使用体验。
-
-```bash
-# 显示帮助信息
-./netdiag-cli
-
-# 执行Ping测试
-./netdiag-cli ping example.com
-./netdiag-cli ping example.com --count 10
-
-# 执行端口扫描
-./netdiag-cli portscan example.com
-./netdiag-cli portscan example.com --start-port 80 --end-port 100
-./netdiag-cli portscan example.com --common-ports
-
-# 执行DNS查询
-./netdiag-cli dns example.com
-./netdiag-cli dns example.com --type mx
-
-# 执行路由跟踪
-./netdiag-cli traceroute example.com
-./netdiag-cli traceroute example.com --max-hops 15
-
-# 执行网络速度测试
-./netdiag-cli speedtest
-
-# 获取IP地址信息
-./netdiag-cli ipinfo
-./netdiag-cli ipinfo 8.8.8.8
-```
-
-每个命令都有相应的帮助信息，可以通过 `--help` 参数查看：
-
-```bash
-./netdiag-cli ping --help
-./netdiag-cli portscan --help
-```
 
 ### 图形界面版本
 

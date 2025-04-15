@@ -3,7 +3,9 @@ package netdiag
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
+	"log"
 )
 
 // PortStatus 表示端口状态
@@ -42,15 +44,17 @@ var commonPorts = map[int]string{
 
 // ScanPort 检测指定主机的单个端口是否开放
 func ScanPort(host string, port int, timeout time.Duration) PortStatus {
-	result := PortStatus{
-		Port: port,
-		Open: false,
-	}
+    log.Printf("开始扫描主机 %s 的端口 %d", host, port)
+    result := PortStatus{
+        Port: port,
+        Open: false,
+    }
 
 	address := fmt.Sprintf("%s:%d", host, port)
 	conn, err := net.DialTimeout("tcp", address, timeout)
 
 	if err != nil {
+		log.Printf("扫描主机 %s 的端口 %d 失败: %v", host, port, err)
 		return result
 	}
 
@@ -68,7 +72,7 @@ func ScanPort(host string, port int, timeout time.Duration) PortStatus {
 }
 
 // ScanPorts 扫描主机的多个端口
-func ScanPorts(host string, startPort, endPort int, timeout time.Duration) PortScanResult {
+func ScanPorts(host string, startPort, endPort int, timeout time.Duration, concurrency int) PortScanResult {
 	result := PortScanResult{
 		Host:  host,
 		Ports: []PortStatus{},
@@ -77,22 +81,42 @@ func ScanPorts(host string, startPort, endPort int, timeout time.Duration) PortS
 	// 检查主机名是否有效
 	_, err := net.LookupHost(host)
 	if err != nil {
+		log.Printf("无法解析主机名 %s: %v", host, err)
 		result.Error = fmt.Sprintf("无法解析主机名: %v", err)
 		return result
 	}
 
+	var wg sync.WaitGroup
+	results := make(chan PortStatus, endPort-startPort+1)
+	sem := make(chan struct{}, concurrency)
+
 	for port := startPort; port <= endPort; port++ {
-		status := ScanPort(host, port, timeout)
+		wg.Add(1)
+		go func(p int) {
+			sem <- struct{}{}
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			results <- ScanPort(host, p, timeout)
+		}(port)
+	}
+
+	wg.Wait()
+	close(results)
+
+	for status := range results {
 		if status.Open {
 			result.Ports = append(result.Ports, status)
 		}
 	}
 
+	log.Printf("完成扫描主机 %s 从端口 %d 到 %d，共发现 %d 个开放端口", host, startPort, endPort, len(result.Ports))
 	return result
 }
 
 // ScanCommonPorts 扫描主机的常用端口
-func ScanCommonPorts(host string, timeout time.Duration) PortScanResult {
+func ScanCommonPorts(host string, timeout time.Duration, concurrency int) PortScanResult {
 	result := PortScanResult{
 		Host:  host,
 		Ports: []PortStatus{},
@@ -101,16 +125,36 @@ func ScanCommonPorts(host string, timeout time.Duration) PortScanResult {
 	// 检查主机名是否有效
 	_, err := net.LookupHost(host)
 	if err != nil {
+		log.Printf("无法解析主机名 %s: %v", host, err)
 		result.Error = fmt.Sprintf("无法解析主机名: %v", err)
 		return result
 	}
 
+	var wg sync.WaitGroup
+	results := make(chan PortStatus, len(commonPorts))
+	sem := make(chan struct{}, concurrency)
+
 	for port := range commonPorts {
-		status := ScanPort(host, port, timeout)
+		wg.Add(1)
+		go func(p int) {
+			sem <- struct{}{}
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			results <- ScanPort(host, p, timeout)
+		}(port)
+	}
+
+	wg.Wait()
+	close(results)
+
+	for status := range results {
 		if status.Open {
 			result.Ports = append(result.Ports, status)
 		}
 	}
 
+	log.Printf("完成扫描主机 %s 的常用端口，共发现 %d 个开放端口", host, len(result.Ports))
 	return result
 }
