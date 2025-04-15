@@ -15,9 +15,9 @@ var programName string
 // rootCmd 表示基础命令
 var rootCmd = &cobra.Command{
 	Use:   "%[1]s",
-	Short: "网络诊断工具箱",
-	Long: `网络诊断工具箱是一个用Go语言编写的运维工具集合，
-提供了多种网络诊断和管理功能，如Ping测试、端口扫描、DNS查询等。
+	Short: "网络诊断和数据处理工具箱",
+	Long: `网络诊断和数据处理工具箱是一个用Go语言编写的运维工具集合，
+提供了多种网络诊断、数据格式化和管理功能。
 
 使用方法示例:
   %[1]s ping example.com
@@ -25,7 +25,14 @@ var rootCmd = &cobra.Command{
   %[1]s dns example.com --type mx
   %[1]s traceroute example.com
   %[1]s speedtest
-  %[1]s ipinfo 8.8.8.8`,
+  %[1]s ipinfo 8.8.8.8
+  %[1]s sniff eth0 --filter "tcp and port 80"
+  %[1]s sniff --list-interfaces
+  %[1]s fmt data.json --pretty
+  %[1]s fmt config.xml --pretty --output formatted.xml
+  %[1]s text grep "error" log.txt
+  %[1]s text replace "old" "new" file.txt
+  %[1]s text filter '$1 > 100' data.txt`,
 }
 
 // Execute 将所有子命令添加到根命令并设置标志。

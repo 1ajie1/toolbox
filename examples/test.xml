@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8"?><toolbox><name>网络工具箱</name><version>1.0.0</version><features><feature>网络诊断</feature><feature>抓包分析</feature><feature>数据格式化</feature></features><config><debug>true</debug><timeout>30</timeout><ports><port>80</port><port>443</port><port>8080</port></ports></config></toolbox>

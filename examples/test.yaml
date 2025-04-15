@@ -1,0 +1,31 @@
+# 人员信息
+person:
+  name: John Doe
+  age: 30
+  email: johndoe@example.com
+  hobbies:
+    - reading
+    - swimming
+    - hiking
+  address:
+    street: 123 Main St
+    city: Anytown
+    state: CA
+    zip: 12345
+
+# 数据库配置
+database:
+  type: mysql
+  host: localhost
+  port: 3306
+  username: root
+  password: password123
+  database_name: mydb
+
+# 服务器配置
+server:
+  port: 8080
+  debug_mode: false
+  allowed_origins:
+    - "https://example.com"
+    - "https://www.example.org"
