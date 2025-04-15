@@ -23,7 +23,7 @@ jobs:
         env:
           GOOS: windows
           GOARCH: amd64
-        run: go build -o toolbox.exe ./cmd/cli/main.go
+        run: apt-get update && apt-get install libpcap-dev && go build -o toolbox.exe ./cmd/cli/main.go
 
       - name: Build for Linux amd64
         if: runner.os == 'Linux'
