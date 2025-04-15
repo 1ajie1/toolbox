@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"os"
-	"regexp"
-	"strconv"
-	"strings"
 
-	"github.com/fatih/color"
+	"tuleaj_tools/tool-box/pkg/textproc"
+
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +34,9 @@ var textGrepCmd = &cobra.Command{
   %[1]s text grep "^[0-9]+" file.txt        # 使用正则表达式搜索以数字开头的行
   cat file.txt | %[1]s text grep "pattern"  # 从标准输入搜索
   %[1]s text grep -n "pattern" file.txt     # 显示行号
-  %[1]s text grep -i "pattern" file.txt     # 忽略大小写搜索`,
+  %[1]s text grep -i "pattern" file.txt     # 忽略大小写搜索
+  %[1]s text grep -r "pattern" ./src        # 递归搜索目录
+  %[1]s text grep -r -f "*.go" "func" ./src # 递归搜索目录中的go文件`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
 			fmt.Println("错误: 必须指定搜索模式")
@@ -54,16 +52,22 @@ var textGrepCmd = &cobra.Command{
 		onlyCount, _ := cmd.Flags().GetBool("count")
 		colorOutput, _ := cmd.Flags().GetBool("color")
 		contextLines, _ := cmd.Flags().GetInt("context")
+		recursive, _ := cmd.Flags().GetBool("recursive")
+		filePattern, _ := cmd.Flags().GetString("file-pattern")
+		excludeDirs, _ := cmd.Flags().GetStringSlice("exclude-dir")
 
-		// 编译正则表达式
-		var regexpOpt string
-		if ignoreCase {
-			regexpOpt = "(?i)"
-		}
-		re, err := regexp.Compile(regexpOpt + pattern)
-		if err != nil {
-			fmt.Printf("错误: 无效的正则表达式: %v\n", err)
-			os.Exit(1)
+		// 创建grep选项
+		options := textproc.GrepOptions{
+			Pattern:      pattern,
+			IgnoreCase:   ignoreCase,
+			ShowLineNum:  showLineNum,
+			InvertMatch:  invertMatch,
+			OnlyCount:    onlyCount,
+			ColorOutput:  colorOutput,
+			ContextLines: contextLines,
+			Recursive:    recursive,
+			FilePattern:  filePattern,
+			ExcludeDirs:  excludeDirs,
 		}
 
 		// 确定输入源
@@ -85,6 +89,34 @@ var textGrepCmd = &cobra.Command{
 		// 处理每个输入源
 		totalMatches := 0
 		for _, source := range sources {
+			// 递归处理目录
+			if recursive {
+				// 检查是否是目录
+				fileInfo, err := os.Stat(source)
+				if err != nil {
+					fmt.Printf("错误: 无法访问 %s: %v\n", source, err)
+					continue
+				}
+
+				if fileInfo.IsDir() {
+					// 是目录，递归搜索
+					result, err := textproc.GrepDirectory(source, os.Stdout, options)
+					if err != nil {
+						fmt.Printf("错误: %v\n", err)
+						continue
+					}
+
+					totalMatches += result.Matches
+
+					if len(sources) > 1 && !onlyCount {
+						fmt.Println() // 源之间添加空行
+					}
+
+					continue
+				}
+				// 不是目录，按普通文件处理
+			}
+
 			var file *os.File
 			var sourceName string
 
@@ -103,8 +135,13 @@ var textGrepCmd = &cobra.Command{
 			}
 
 			// 执行搜索
-			matches := executeGrep(file, re, showLineNum, invertMatch, colorOutput, contextLines, sourceName)
-			totalMatches += matches
+			result, err := textproc.ExecuteGrep(file, os.Stdout, options, sourceName)
+			if err != nil {
+				fmt.Printf("错误: %v\n", err)
+				continue
+			}
+
+			totalMatches += result.Matches
 
 			if len(sources) > 1 && !onlyCount {
 				fmt.Println() // 文件之间添加空行
@@ -112,7 +149,7 @@ var textGrepCmd = &cobra.Command{
 		}
 
 		// 如果只需计数，输出匹配总数
-		if onlyCount {
+		if onlyCount && !recursive {
 			fmt.Println(totalMatches)
 		}
 	},
@@ -147,15 +184,12 @@ var textReplaceCmd = &cobra.Command{
 		inPlace, _ := cmd.Flags().GetBool("in-place")
 		backup, _ := cmd.Flags().GetString("backup")
 
-		// 编译正则表达式
-		var regexpOpt string
-		if ignoreCase {
-			regexpOpt = "(?i)"
-		}
-		re, err := regexp.Compile(regexpOpt + pattern)
-		if err != nil {
-			fmt.Printf("错误: 无效的正则表达式: %v\n", err)
-			os.Exit(1)
+		// 创建replace选项
+		options := textproc.ReplaceOptions{
+			Pattern:       pattern,
+			Replacement:   replacement,
+			IgnoreCase:    ignoreCase,
+			GlobalReplace: globalReplace,
 		}
 
 		// 确定输入源
@@ -182,7 +216,10 @@ var textReplaceCmd = &cobra.Command{
 		for _, source := range sources {
 			if source == "-" {
 				// 标准输入输出模式
-				executeReplace(os.Stdin, os.Stdout, re, replacement, globalReplace, "")
+				_, err := textproc.ExecuteReplace(os.Stdin, os.Stdout, options)
+				if err != nil {
+					fmt.Printf("错误: %v\n", err)
+				}
 			} else {
 				// 文件模式
 				if inPlace {
@@ -196,9 +233,8 @@ var textReplaceCmd = &cobra.Command{
 
 					// 创建备份（如果需要）
 					if backup != "" {
-						backupFile := source + backup
-						if err := copyFile(source, backupFile); err != nil {
-							fmt.Printf("错误: 无法创建备份 %s: %v\n", backupFile, err)
+						if err := textproc.CreateBackup(source, backup); err != nil {
+							fmt.Printf("错误: 无法创建备份 %s: %v\n", source+backup, err)
 							origFile.Close()
 							continue
 						}
@@ -213,7 +249,14 @@ var textReplaceCmd = &cobra.Command{
 					}
 
 					// 执行替换
-					executeReplace(origFile, tmpFile, re, replacement, globalReplace, source)
+					result, err := textproc.ExecuteReplace(origFile, tmpFile, options)
+					if err != nil {
+						fmt.Printf("错误: %v\n", err)
+						origFile.Close()
+						tmpFile.Close()
+						os.Remove(tempFile) // 清理临时文件
+						continue
+					}
 
 					// 关闭文件
 					origFile.Close()
@@ -226,7 +269,7 @@ var textReplaceCmd = &cobra.Command{
 						continue
 					}
 
-					fmt.Printf("已更新文件: %s\n", source)
+					fmt.Printf("已处理 %d 行，替换了 %d 处\n", result.LinesProcessed, result.Replacements)
 				} else {
 					// 输出到标准输出模式
 					file, err := os.Open(source)
@@ -234,10 +277,10 @@ var textReplaceCmd = &cobra.Command{
 						fmt.Printf("错误: 无法打开文件 %s: %v\n", source, err)
 						continue
 					}
+					defer file.Close()
 
 					fmt.Printf("==> %s <==\n", source)
-					executeReplace(file, os.Stdout, re, replacement, globalReplace, "")
-					file.Close()
+					textproc.ExecuteReplace(file, os.Stdout, options)
 
 					if len(sources) > 1 {
 						fmt.Println() // 文件之间添加空行
@@ -273,6 +316,13 @@ var textFilterCmd = &cobra.Command{
 		expression := args[0]
 		fieldSep, _ := cmd.Flags().GetString("field-separator")
 		printPattern, _ := cmd.Flags().GetString("print")
+
+		// 创建filter选项
+		options := textproc.FilterOptions{
+			Expression:   expression,
+			FieldSep:     fieldSep,
+			PrintPattern: printPattern,
+		}
 
 		// 确定输入源
 		var sources []string
@@ -313,7 +363,12 @@ var textFilterCmd = &cobra.Command{
 			if len(sources) > 1 {
 				fmt.Printf("==> %s <==\n", sourceName)
 			}
-			executeFilter(file, expression, fieldSep, printPattern)
+
+			_, err := textproc.ExecuteFilter(file, os.Stdout, options)
+			if err != nil {
+				fmt.Printf("错误: %v\n", err)
+				continue
+			}
 
 			if len(sources) > 1 {
 				fmt.Println() // 文件之间添加空行
@@ -330,11 +385,14 @@ func init() {
 
 	// grep命令选项
 	textGrepCmd.Flags().BoolP("ignore-case", "i", false, "忽略大小写")
-	textGrepCmd.Flags().BoolP("line-number", "n", false, "显示行号")
+	textGrepCmd.Flags().BoolP("line-number", "n", true, "显示行号")
 	textGrepCmd.Flags().BoolP("invert-match", "v", false, "反向匹配（显示不匹配的行）")
 	textGrepCmd.Flags().BoolP("count", "c", false, "只显示匹配的行数")
 	textGrepCmd.Flags().BoolP("color", "", true, "彩色输出匹配部分")
 	textGrepCmd.Flags().IntP("context", "C", 0, "显示匹配行前后的上下文行数")
+	textGrepCmd.Flags().BoolP("recursive", "r", false, "递归搜索目录")
+	textGrepCmd.Flags().StringP("file-pattern", "f", "", "文件名匹配模式（正则表达式）")
+	textGrepCmd.Flags().StringSliceP("exclude-dir", "e", []string{}, "排除的目录名（可重复使用此选项指定多个目录）")
 
 	// replace命令选项
 	textReplaceCmd.Flags().BoolP("ignore-case", "i", false, "忽略大小写")
@@ -345,366 +403,4 @@ func init() {
 	// filter命令选项
 	textFilterCmd.Flags().StringP("field-separator", "F", " ", "字段分隔符")
 	textFilterCmd.Flags().StringP("print", "p", "", "输出格式模式")
-}
-
-// executeGrep 执行文本搜索
-func executeGrep(file *os.File, re *regexp.Regexp, showLineNum, invertMatch, colorOutput bool, contextLines int, sourceName string) int {
-	scanner := bufio.NewScanner(file)
-
-	// 彩色输出设置
-	matchColor := color.New(color.FgRed, color.Bold).SprintFunc()
-	lineNumColor := color.New(color.FgGreen).SprintFunc()
-	filenameColor := color.New(color.FgBlue, color.Bold).SprintFunc()
-
-	// 用于存储匹配结果的行和上下文
-	type lineInfo struct {
-		num     int
-		content string
-		matched bool
-	}
-
-	// 读取所有行
-	var lines []lineInfo
-	lineNum := 0
-	matchCount := 0
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		matched := re.MatchString(line)
-
-		if invertMatch {
-			matched = !matched
-		}
-
-		if matched {
-			matchCount++
-		}
-
-		lines = append(lines, lineInfo{lineNum, line, matched})
-	}
-
-	if scanner.Err() != nil {
-		fmt.Printf("读取错误: %v\n", scanner.Err())
-		return 0
-	}
-
-	// 如果只需要计数，直接返回
-	if len(lines) == 0 {
-		return 0
-	}
-
-	// 显示结果
-	if len(sourceName) > 0 && sourceName != "标准输入" {
-		fmt.Printf("==> %s <==\n", filenameColor(sourceName))
-	}
-
-	// 处理匹配行及其上下文
-	for i := 0; i < len(lines); i++ {
-		if !lines[i].matched && contextLines == 0 {
-			continue // 非匹配行且不需要上下文
-		}
-
-		// 检查是否在匹配行的上下文范围内
-		inContext := false
-		if contextLines > 0 && !lines[i].matched {
-			// 检查前后是否有匹配行
-			for j := max(0, i-contextLines); j <= min(len(lines)-1, i+contextLines); j++ {
-				if lines[j].matched {
-					inContext = true
-					break
-				}
-			}
-		}
-
-		if lines[i].matched || inContext {
-			line := lines[i].content
-
-			// 格式化输出
-			if showLineNum {
-				fmt.Printf("%s:", lineNumColor(fmt.Sprintf("%d", lines[i].num)))
-			}
-
-			if colorOutput && lines[i].matched {
-				// 高亮显示匹配部分
-				line = re.ReplaceAllStringFunc(line, func(match string) string {
-					return matchColor(match)
-				})
-			}
-
-			fmt.Println(line)
-		}
-	}
-
-	return matchCount
-}
-
-// executeReplace 执行文本替换
-func executeReplace(input *os.File, output *os.File, re *regexp.Regexp, replacement string, globalReplace bool, filename string) {
-	scanner := bufio.NewScanner(input)
-	lineCount := 0
-	replaceCount := 0
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		lineCount++
-
-		var newLine string
-		if globalReplace {
-			// 全局替换（每行多次）
-			beforeLen := len(line)
-			newLine = re.ReplaceAllString(line, replacement)
-			if beforeLen != len(newLine) {
-				replaceCount++
-			}
-		} else {
-			// 每行只替换一次
-			loc := re.FindStringIndex(line)
-			if loc != nil {
-				replaceCount++
-				newLine = line[:loc[0]] + re.ReplaceAllString(line[loc[0]:loc[1]], replacement) + line[loc[1]:]
-			} else {
-				newLine = line
-			}
-		}
-
-		fmt.Fprintln(output, newLine)
-	}
-
-	if scanner.Err() != nil {
-		fmt.Printf("读取错误: %v\n", scanner.Err())
-		return
-	}
-
-	if filename != "" {
-		fmt.Printf("处理了 %d 行，替换了 %d 处\n", lineCount, replaceCount)
-	}
-}
-
-// executeFilter 执行文本过滤
-func executeFilter(file *os.File, expression string, fieldSep string, printPattern string) {
-	scanner := bufio.NewScanner(file)
-	lineNum := 0
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		fields := strings.Split(line, fieldSep)
-
-		// 简化的表达式解析和评估（仅支持基本功能）
-		if evaluateExpression(expression, line, fields) {
-			if printPattern != "" {
-				// 使用打印模式格式化输出
-				fmt.Println(formatOutput(printPattern, fields))
-			} else {
-				// 输出原始行
-				fmt.Println(line)
-			}
-		}
-	}
-
-	if scanner.Err() != nil {
-		fmt.Printf("读取错误: %v\n", scanner.Err())
-	}
-}
-
-// evaluateExpression 评估过滤表达式
-func evaluateExpression(expr string, line string, fields []string) bool {
-	// 非常简化的表达式评估，仅支持基本功能
-	// 真实实现需要一个合适的表达式解析器
-
-	// 一些基本的模式识别
-	expr = strings.TrimSpace(expr)
-
-	// 字段引用：$0, $1, $2...
-	for i := 0; i <= len(fields); i++ {
-		var value string
-		if i == 0 {
-			value = line // $0 表示整行
-		} else if i <= len(fields) {
-			value = fields[i-1] // $1 表示第一个字段
-		} else {
-			value = ""
-		}
-
-		// 替换字段引用
-		expr = strings.ReplaceAll(expr, fmt.Sprintf("$%d", i), fmt.Sprintf("\"%s\"", value))
-	}
-
-	// 尝试一些简单的比较
-	// 等于: ==
-	if strings.Contains(expr, "==") {
-		parts := strings.Split(expr, "==")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			// 去掉可能的引号
-			left = strings.Trim(left, "\"")
-			right = strings.Trim(right, "\"")
-			return left == right
-		}
-	}
-
-	// 不等于: !=
-	if strings.Contains(expr, "!=") {
-		parts := strings.Split(expr, "!=")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			// 去掉可能的引号
-			left = strings.Trim(left, "\"")
-			right = strings.Trim(right, "\"")
-			return left != right
-		}
-	}
-
-	// 大于: >
-	if strings.Contains(expr, ">") {
-		parts := strings.Split(expr, ">")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			// 去掉可能的引号
-			left = strings.Trim(left, "\"")
-			right = strings.Trim(right, "\"")
-			// 尝试作为数字比较
-			leftNum, leftErr := strconv.ParseFloat(left, 64)
-			rightNum, rightErr := strconv.ParseFloat(right, 64)
-			if leftErr == nil && rightErr == nil {
-				return leftNum > rightNum
-			}
-			// 否则按字符串比较
-			return left > right
-		}
-	}
-
-	// 小于: <
-	if strings.Contains(expr, "<") {
-		parts := strings.Split(expr, "<")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			// 去掉可能的引号
-			left = strings.Trim(left, "\"")
-			right = strings.Trim(right, "\"")
-			// 尝试作为数字比较
-			leftNum, leftErr := strconv.ParseFloat(left, 64)
-			rightNum, rightErr := strconv.ParseFloat(right, 64)
-			if leftErr == nil && rightErr == nil {
-				return leftNum < rightNum
-			}
-			// 否则按字符串比较
-			return left < right
-		}
-	}
-
-	// 包含: contains
-	if strings.Contains(expr, "contains") {
-		parts := strings.Split(expr, "contains")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			// 去掉可能的引号
-			left = strings.Trim(left, "\"")
-			right = strings.Trim(right, "\"")
-			return strings.Contains(left, right)
-		}
-	}
-
-	// 正则匹配: ~
-	if strings.Contains(expr, "~") {
-		parts := strings.Split(expr, "~")
-		if len(parts) == 2 {
-			left := strings.TrimSpace(parts[0])
-			right := strings.TrimSpace(parts[1])
-			// 去掉可能的引号
-			left = strings.Trim(left, "\"")
-			// 提取正则表达式
-			re := strings.Trim(right, "/ ")
-			pattern, err := regexp.Compile(re)
-			if err == nil {
-				return pattern.MatchString(left)
-			}
-		}
-	}
-
-	// 长度函数
-	if strings.Contains(expr, "length(") {
-		re := regexp.MustCompile(`length\("([^"]*)"\)`)
-		matches := re.FindStringSubmatch(expr)
-		if len(matches) > 1 {
-			lengthStr := fmt.Sprintf("%d", len(matches[1]))
-			expr = strings.Replace(expr, matches[0], lengthStr, 1)
-			return evaluateExpression(expr, line, fields)
-		}
-	}
-
-	// 最简单的情况 - 如果表达式是非空字符串，返回true
-	if expr != "" && expr != "0" && expr != "false" {
-		return true
-	}
-
-	return false
-}
-
-// formatOutput 根据模式格式化输出
-func formatOutput(pattern string, fields []string) string {
-	result := pattern
-
-	// 替换${n}形式的字段引用
-	re := regexp.MustCompile(`\$\{(\d+)\}`)
-	result = re.ReplaceAllStringFunc(result, func(match string) string {
-		numStr := re.FindStringSubmatch(match)[1]
-		idx, err := strconv.Atoi(numStr)
-		if err != nil || idx < 1 || idx > len(fields) {
-			return ""
-		}
-		return fields[idx-1]
-	})
-
-	// 替换$n形式的字段引用
-	result = regexp.MustCompile(`\$(\d+)`).ReplaceAllStringFunc(result, func(match string) string {
-		numStr := match[1:]
-		idx, err := strconv.Atoi(numStr)
-		if err != nil || idx < 1 || idx > len(fields) {
-			return ""
-		}
-		return fields[idx-1]
-	})
-
-	return result
-}
-
-// copyFile 复制文件
-func copyFile(src, dst string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	_, err = io.Copy(dstFile, srcFile)
-	return err
-}
-
-// min 返回两个整数的较小值
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// max 返回两个整数的较大值
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

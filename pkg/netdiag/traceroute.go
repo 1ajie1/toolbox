@@ -53,7 +53,7 @@ func Traceroute(host string, options TracerouteOptions) (TracerouteResult, error
 	}
 
 	// 创建原始套接字
-	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_ICMP)
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, IPPROTO_ICMP)
 	if err != nil {
 		result.Error = fmt.Sprintf("创建原始套接字失败: %v", err)
 		return result, err
@@ -108,7 +108,7 @@ func Traceroute(host string, options TracerouteOptions) (TracerouteResult, error
 
 		// 设置超时
 		tv := syscall.NsecToTimeval(options.Timeout.Nanoseconds())
-		err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)
+		err = syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, SO_RCVTIMEO, &tv)
 		if err != nil {
 			result.Error = fmt.Sprintf("设置超时失败: %v", err)
 			return result, err
