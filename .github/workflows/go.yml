@@ -1,0 +1,35 @@
+name: Go
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        go-version: [ '1.23.4' ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build for Windows amd64
+        if: runner.os == 'Windows'
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -o toolbox.exe .\cmd\cli\main.go
+
+      - name: Build for Linux amd64
+        if: runner.os == 'Linux'
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -o toolbox .\cmd\cli\main.go
+
+    
