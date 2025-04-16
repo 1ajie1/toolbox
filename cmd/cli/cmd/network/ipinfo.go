@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"fmt"
@@ -18,8 +18,8 @@ var ipinfoCmd = &cobra.Command{
 该命令使用ipinfo.io的API服务来获取IP信息。
 
 示例:
-  %[1]s ipinfo
-  %[1]s ipinfo 8.8.8.8`,
+  %[1]s network ipinfo
+  %[1]s network ipinfo 8.8.8.8`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var ip string
@@ -31,7 +31,7 @@ var ipinfoCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(ipinfoCmd)
+	NetworkCmd.AddCommand(ipinfoCmd)
 }
 
 // executeIPInfo 获取IP信息

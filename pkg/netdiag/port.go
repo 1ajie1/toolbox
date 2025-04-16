@@ -2,10 +2,11 @@ package netdiag
 
 import (
 	"fmt"
+	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
-	"log"
 )
 
 // PortStatus 表示端口状态
@@ -44,13 +45,21 @@ var commonPorts = map[int]string{
 
 // ScanPort 检测指定主机的单个端口是否开放
 func ScanPort(host string, port int, timeout time.Duration) PortStatus {
-    log.Printf("开始扫描主机 %s 的端口 %d", host, port)
-    result := PortStatus{
-        Port: port,
-        Open: false,
-    }
+	log.Printf("开始扫描主机 %s 的端口 %d", host, port)
+	result := PortStatus{
+		Port: port,
+		Open: false,
+	}
 
-	address := fmt.Sprintf("%s:%d", host, port)
+	// 正确处理IPv6地址格式
+	var address string
+	if strings.Contains(host, ":") && !strings.Contains(host, "[") {
+		// IPv6地址需要用方括号括起来
+		address = fmt.Sprintf("[%s]:%d", host, port)
+	} else {
+		address = fmt.Sprintf("%s:%d", host, port)
+	}
+
 	conn, err := net.DialTimeout("tcp", address, timeout)
 
 	if err != nil {
@@ -156,5 +165,49 @@ func ScanCommonPorts(host string, timeout time.Duration, concurrency int) PortSc
 	}
 
 	log.Printf("完成扫描主机 %s 的常用端口，共发现 %d 个开放端口", host, len(result.Ports))
+	return result
+}
+
+// ScanSpecificPorts 扫描主机的指定端口列表
+func ScanSpecificPorts(host string, ports []int, timeout time.Duration, concurrency int) PortScanResult {
+	result := PortScanResult{
+		Host:  host,
+		Ports: []PortStatus{},
+	}
+
+	// 检查主机名是否有效
+	_, err := net.LookupHost(host)
+	if err != nil {
+		log.Printf("无法解析主机名 %s: %v", host, err)
+		result.Error = fmt.Sprintf("无法解析主机名: %v", err)
+		return result
+	}
+
+	var wg sync.WaitGroup
+	results := make(chan PortStatus, len(ports))
+	sem := make(chan struct{}, concurrency)
+
+	for _, port := range ports {
+		wg.Add(1)
+		go func(p int) {
+			sem <- struct{}{}
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			results <- ScanPort(host, p, timeout)
+		}(port)
+	}
+
+	wg.Wait()
+	close(results)
+
+	for status := range results {
+		if status.Open {
+			result.Ports = append(result.Ports, status)
+		}
+	}
+
+	log.Printf("完成扫描主机 %s 的指定端口列表，共发现 %d 个开放端口", host, len(result.Ports))
 	return result
 }

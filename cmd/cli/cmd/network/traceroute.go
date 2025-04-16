@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"fmt"
@@ -19,8 +19,8 @@ var tracerouteCmd = &cobra.Command{
 该命令会显示数据包经过的每个路由节点，包括IP地址、主机名和延迟。
 
 示例:
-  %[1]s traceroute example.com
-  %[1]s traceroute 8.8.8.8 --max-hops 20`,
+  %[1]s network traceroute example.com
+  %[1]s network traceroute 8.8.8.8 --max-hops 20`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		host := args[0]
@@ -33,7 +33,7 @@ var tracerouteCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(tracerouteCmd)
+	NetworkCmd.AddCommand(tracerouteCmd)
 
 	// 添加命令行标志
 	tracerouteCmd.Flags().IntP("max-hops", "m", 30, "最大跳数")

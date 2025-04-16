@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"fmt"
@@ -23,10 +23,10 @@ var speedtestCmd = &cobra.Command{
 
 示例:
   # 启动本地测试服务器
-  %[1]s speedtest --server --port 8080
+  %[1]s network speedtest --server --port 8080
 
   # 执行速度测试
-  %[1]s speedtest`,
+  %[1]s network speedtest`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// 检查是否以服务器模式运行
 		isServer, _ := cmd.Flags().GetBool("server")
@@ -42,7 +42,7 @@ var speedtestCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(speedtestCmd)
+	NetworkCmd.AddCommand(speedtestCmd)
 
 	// 添加命令行标志
 	speedtestCmd.Flags().BoolP("server", "s", false, "以服务器模式运行")

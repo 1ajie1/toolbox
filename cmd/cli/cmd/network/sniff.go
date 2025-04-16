@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"fmt"
@@ -20,11 +20,11 @@ var sniffCmd = &cobra.Command{
 支持保存为pcap文件格式，可与Wireshark等工具兼容。
 
 示例:
-  %[1]s sniff eth0
-  %[1]s sniff eth0 --filter "tcp and port 80"
-  %[1]s sniff eth0 --output capture.txt
-  %[1]s sniff eth0 --pcap capture.pcap
-  %[1]s sniff --list-interfaces`,
+  %[1]s network sniff eth0
+  %[1]s network sniff eth0 --filter "tcp and port 80"
+  %[1]s network sniff eth0 --output capture.txt
+  %[1]s network sniff eth0 --pcap capture.pcap
+  %[1]s network sniff --list-interfaces`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// 检查是否要列出接口
 		listInterfaces, _ := cmd.Flags().GetBool("list-interfaces")
@@ -61,7 +61,7 @@ var sniffCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(sniffCmd)
+	NetworkCmd.AddCommand(sniffCmd)
 
 	// 添加命令行标志
 	sniffCmd.Flags().StringP("filter", "f", "", "设置过滤规则，如 'tcp and port 80'")

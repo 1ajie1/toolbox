@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"fmt"
@@ -22,11 +22,11 @@ var dnsCmd = &cobra.Command{
 如果不指定DNS服务器，则使用系统默认的DNS解析方式。
 
 示例:
-  %[1]s dns example.com
-  %[1]s dns example.com --type mx
-  %[1]s dns example.com --type ns
-  %[1]s dns example.com --dns-server 8.8.8.8
-  %[1]s dns example.com --dns-server 8.8.8.8:53 --type all`,
+  %[1]s network dns example.com
+  %[1]s network dns example.com --type mx
+  %[1]s network dns example.com --type ns
+  %[1]s network dns example.com --dns-server 8.8.8.8
+  %[1]s network dns example.com --dns-server 8.8.8.8:53 --type all`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
@@ -38,7 +38,7 @@ var dnsCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(dnsCmd)
+	NetworkCmd.AddCommand(dnsCmd)
 
 	// 添加命令行标志
 	dnsCmd.Flags().StringP("type", "t", "ip", "DNS记录类型 (ip, mx, ns, txt, all)")

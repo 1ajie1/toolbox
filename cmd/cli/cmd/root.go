@@ -5,6 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	fmt_local "tuleaj_tools/tool-box/cmd/cli/cmd/fmt"
+	"tuleaj_tools/tool-box/cmd/cli/cmd/fs"
+	"tuleaj_tools/tool-box/cmd/cli/cmd/network"
+	"tuleaj_tools/tool-box/cmd/cli/cmd/text"
 
 	"github.com/spf13/cobra"
 )
@@ -20,19 +24,20 @@ var rootCmd = &cobra.Command{
 提供了多种网络诊断、数据格式化和管理功能。
 
 使用方法示例:
-  %[1]s ping example.com
-  %[1]s portscan example.com --start-port 80 --end-port 100
-  %[1]s dns example.com --type mx
-  %[1]s traceroute example.com
-  %[1]s speedtest
-  %[1]s ipinfo 8.8.8.8
-  %[1]s sniff eth0 --filter "tcp and port 80"
-  %[1]s sniff --list-interfaces
+  %[1]s network ping example.com
+  %[1]s network portscan example.com --start-port 80 --end-port 100
+  %[1]s network dns example.com --type mx
+  %[1]s network traceroute example.com
+  %[1]s network speedtest
+  %[1]s network ipinfo 8.8.8.8
+  %[1]s network sniff eth0 --filter "tcp and port 80"
+  %[1]s network sniff --list-interfaces
   %[1]s fmt data.json --pretty
   %[1]s fmt config.xml --pretty --output formatted.xml
   %[1]s text grep "error" log.txt
   %[1]s text replace "old" "new" file.txt
-  %[1]s text filter '$1 > 100' data.txt`,
+  %[1]s text filter '$1 > 100' data.txt
+  %[1]s fs tree /path/to/dir -d 2 -a`,
 }
 
 // Execute 将所有子命令添加到根命令并设置标志。
@@ -76,4 +81,10 @@ func getProgramName() string {
 func init() {
 	// 初始化程序名
 	programName = getProgramName()
+
+	// 添加模块
+	rootCmd.AddCommand(network.NetworkCmd)
+	rootCmd.AddCommand(fmt_local.FmtCmd)
+	rootCmd.AddCommand(fs.FsCmd)
+	rootCmd.AddCommand(text.TextCmd)
 }

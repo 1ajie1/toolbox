@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"fmt"
@@ -18,9 +18,9 @@ var pingCmd = &cobra.Command{
 该命令将向指定的主机发送ICMP echo请求包，并显示结果。
 
 示例:
-  %[1]s ping example.com
-  %[1]s ping 8.8.8.8 --count 10
-  %[1]s ping example.com --interval 2`,
+  %[1]s network ping example.com
+  %[1]s network ping 8.8.8.8 --count 10
+  %[1]s network ping example.com --interval 2`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		host := args[0]
@@ -32,7 +32,7 @@ var pingCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(pingCmd)
+	NetworkCmd.AddCommand(pingCmd)
 
 	// 添加命令行标志
 	pingCmd.Flags().IntP("count", "c", 4, "要发送的Ping包数量")

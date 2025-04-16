@@ -1,18 +1,1 @@
-{
-    "name": "网络工具箱",
-    "version": "1.0.0",
-    "features": [
-        "网络诊断",
-        "抓包分析",
-        "数据格式化"
-    ],
-    "config": {
-        "debug": true,
-        "timeout": 30,
-        "ports": [
-            80,
-            443,
-            8080
-        ]
-    }
-}
+{"name":"网络工具箱","version":"1.0.0","features":["网络诊断","抓包分析","数据格式化"],"config":{"debug":true,"timeout":30,"ports":[80,443,8080]}}
