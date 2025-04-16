@@ -8,6 +8,7 @@ import (
 	fmt_local "tuleaj_tools/tool-box/cmd/cli/cmd/fmt"
 	"tuleaj_tools/tool-box/cmd/cli/cmd/fs"
 	"tuleaj_tools/tool-box/cmd/cli/cmd/network"
+	"tuleaj_tools/tool-box/cmd/cli/cmd/process"
 	"tuleaj_tools/tool-box/cmd/cli/cmd/text"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,10 @@ var rootCmd = &cobra.Command{
   %[1]s text grep "error" log.txt
   %[1]s text replace "old" "new" file.txt
   %[1]s text filter '$1 > 100' data.txt
-  %[1]s fs tree /path/to/dir -d 2 -a`,
+  %[1]s fs tree /path/to/dir -d 2 -a
+  %[1]s process list
+  %[1]s process list --filter chrome
+  %[1]s process list --sort cpu`,
 }
 
 // Execute 将所有子命令添加到根命令并设置标志。
@@ -87,4 +91,5 @@ func init() {
 	rootCmd.AddCommand(fmt_local.FmtCmd)
 	rootCmd.AddCommand(fs.FsCmd)
 	rootCmd.AddCommand(text.TextCmd)
+	rootCmd.AddCommand(process.ProcessCmd)
 }
