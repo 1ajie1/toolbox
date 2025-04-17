@@ -3,12 +3,15 @@ package netdiag
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/StackExchange/wmi"
 )
 
 // DNSRecord 表示DNS记录
@@ -32,20 +35,24 @@ func GetSystemDNSServers() []string {
 	// 常见的resolv.conf文件位置
 	switch runtime.GOOS {
 	case "windows":
-		// 在Windows系统下使用ipconfig命令获取DNS服务器
-		cmd := exec.Command("ipconfig", "/all")
-		output, err := cmd.Output()
-		if err == nil {
-			lines := strings.Split(string(output), "\n")
-			for i, line := range lines {
-				line = strings.TrimSpace(line)
-				if strings.Contains(line, "DNS Servers") || strings.Contains(line, "DNS 服务器") {
-					if i+1 < len(lines) {
-						dnsLine := strings.TrimSpace(lines[i+1])
-						if dnsLine != "" && !strings.Contains(dnsLine, ":") {
-							dnsServers = append(dnsServers, dnsLine)
-						}
+		// 使用Windows网络API获取DNS服务器信息
+		var err error
+		dnsServers, err = getWindowsDNSServers()
+		if err != nil {
+			// 如果API方法失败，回退到使用ipconfig命令
+			log.Printf("通过API获取DNS服务器失败，尝试使用ipconfig命令: %v", err)
+
+			cmd := exec.Command("ipconfig", "/all")
+			output, err := cmd.Output()
+			if err == nil {
+				lines := strings.Split(string(output), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if strings.Contains(line, "DNS Servers") || strings.Contains(line, "DNS 服务器") {
+						dnsLine := strings.TrimSpace(line)
+						dnsServers = append(dnsServers, strings.Trim(strings.Split(dnsLine, ":")[1], " "))
 					}
+
 				}
 			}
 		}
@@ -321,4 +328,52 @@ func QueryDNS(domain string, dnsServer string) map[string]DNSQueryResult {
 	results["TXT"] = txtResult
 
 	return results
+}
+
+// getWindowsDNSServers 使用Windows API获取DNS服务器
+// 这个函数需要在文件末尾添加，在package作用域内
+func getWindowsDNSServers() ([]string, error) {
+	var dnsServers []string
+
+	// 使用WMI查询获取网络适配器配置信息
+	type NetworkAdapterConfiguration struct {
+		DNSServerSearchOrder []string
+	}
+
+	var nacs []NetworkAdapterConfiguration
+
+	// 使用go-wmi包查询网络适配器配置
+	query := "SELECT DNSServerSearchOrder FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled = TRUE"
+
+	err := wmi.Query(query, &nacs)
+	if err != nil {
+		return nil, fmt.Errorf("WMI查询失败: %v", err)
+	}
+
+	// 从查询结果中提取DNS服务器信息
+	for _, config := range nacs {
+		if len(config.DNSServerSearchOrder) > 0 {
+			for _, dns := range config.DNSServerSearchOrder {
+				if dns != "" && !contains(dnsServers, dns) {
+					dnsServers = append(dnsServers, dns)
+				}
+			}
+		}
+	}
+
+	if len(dnsServers) == 0 {
+		return nil, fmt.Errorf("未找到DNS服务器信息")
+	}
+
+	return dnsServers, nil
+}
+
+// contains 检查字符串slice是否包含特定值
+func contains(slice []string, val string) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+	return false
 }
