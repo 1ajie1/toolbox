@@ -3,7 +3,7 @@ package network
 import (
 	"fmt"
 	"strings"
-	"tuleaj_tools/tool-box/pkg/netdiag"
+	"toolbox/pkg/netdiag"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

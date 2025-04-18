@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 	"time"
-	"tuleaj_tools/tool-box/pkg/process"
+	"toolbox/pkg/process"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

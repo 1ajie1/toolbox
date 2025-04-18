@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"tuleaj_tools/tool-box/pkg/fsutils"
+	"toolbox/pkg/fsutils"
 
 	"github.com/spf13/cobra"
 )
@@ -121,7 +121,7 @@ func init() {
 	compressCmd.Flags().StringP("mode", "m", "compress", "操作模式（compress 或 decompress）(解压缩额外支持rar)")
 	compressCmd.Flags().StringP("type", "t", "", `压缩格式（可选值：zip, tar.gz, tar.bz2, tar.xz, gz, bz2, xz）
 如果不指定，将根据目标文件扩展名自动检测`)
-	compressCmd.Flags().IntP("level", "l", 0, "压缩级别（1-9，0表示默认）")
+	compressCmd.Flags().IntP("level", "l", 6, "压缩级别（1-9）")
 
 	FsCmd.AddCommand(compressCmd)
 }

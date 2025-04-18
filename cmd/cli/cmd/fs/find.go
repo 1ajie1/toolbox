@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"tuleaj_tools/tool-box/pkg/fsutils"
+	"toolbox/pkg/fsutils"
 
 	"github.com/spf13/cobra"
 )

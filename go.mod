@@ -1,4 +1,4 @@
-module tuleaj_tools/tool-box
+module toolbox
 
 go 1.23.4
 

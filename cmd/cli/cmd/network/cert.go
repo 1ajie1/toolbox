@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"tuleaj_tools/tool-box/pkg/netutils"
+	"toolbox/pkg/netutils"
 
 	"github.com/spf13/cobra"
 )

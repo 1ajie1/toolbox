@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"tuleaj_tools/tool-box/pkg/formatter"
+	"toolbox/pkg/formatter"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

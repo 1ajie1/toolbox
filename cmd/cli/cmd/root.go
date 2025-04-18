@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	fmt_local "tuleaj_tools/tool-box/cmd/cli/cmd/fmt"
-	"tuleaj_tools/tool-box/cmd/cli/cmd/fs"
-	"tuleaj_tools/tool-box/cmd/cli/cmd/network"
-	"tuleaj_tools/tool-box/cmd/cli/cmd/process"
-	"tuleaj_tools/tool-box/cmd/cli/cmd/text"
+	fmt_local "toolbox/cmd/cli/cmd/fmt"
+	"toolbox/cmd/cli/cmd/fs"
+	"toolbox/cmd/cli/cmd/network"
+	"toolbox/cmd/cli/cmd/process"
+	"toolbox/cmd/cli/cmd/text"
 
 	"github.com/spf13/cobra"
 )

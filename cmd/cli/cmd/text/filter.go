@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"tuleaj_tools/tool-box/pkg/textproc"
+	"toolbox/pkg/textproc"
 
 	"github.com/spf13/cobra"
 )
