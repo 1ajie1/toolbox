@@ -3,15 +3,12 @@ package netdiag
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/StackExchange/wmi"
 )
 
 // DNSRecord 表示DNS记录
@@ -32,145 +29,158 @@ type DNSQueryResult struct {
 // GetSystemDNSServers 获取系统当前使用的DNS服务器
 func GetSystemDNSServers() []string {
 	var dnsServers []string
-	// 常见的resolv.conf文件位置
+
+	// 根据操作系统选择不同的实现
 	switch runtime.GOOS {
 	case "windows":
-		// 使用Windows网络API获取DNS服务器信息
-		var err error
-		dnsServers, err = getWindowsDNSServers()
-		if err != nil {
-			// 如果API方法失败，回退到使用ipconfig命令
-			log.Printf("通过API获取DNS服务器失败，尝试使用ipconfig命令: %v", err)
-
-			cmd := exec.Command("ipconfig", "/all")
-			output, err := cmd.Output()
-			if err == nil {
-				lines := strings.Split(string(output), "\n")
-				for _, line := range lines {
-					line = strings.TrimSpace(line)
-					if strings.Contains(line, "DNS Servers") || strings.Contains(line, "DNS 服务器") {
-						dnsLine := strings.TrimSpace(line)
-						dnsServers = append(dnsServers, strings.Trim(strings.Split(dnsLine, ":")[1], " "))
-					}
-
-				}
-			}
-		}
-	default:
-		// Linux/Unix/macOS系统
-		// 常见的resolv.conf文件位置
-		resolvConfPaths := []string{
-			"/etc/resolv.conf",         // Linux/Unix
-			"/private/etc/resolv.conf", // macOS
+		// 使用Windows特定的函数
+		servers, err := getWindowsDNSServers()
+		if err == nil && len(servers) > 0 {
+			return servers
 		}
 
-		// 尝试从resolv.conf文件获取DNS服务器
-		for _, path := range resolvConfPaths {
-			content, err := os.ReadFile(path)
-			if err == nil {
-				lines := strings.Split(string(content), "\n")
-				for _, line := range lines {
-					line = strings.TrimSpace(line)
-					if strings.HasPrefix(line, "nameserver") {
-						parts := strings.Fields(line)
-						if len(parts) >= 2 {
-							dnsServers = append(dnsServers, parts[1])
+		// 如果API方法失败，回退到使用ipconfig命令
+		cmd := exec.Command("ipconfig", "/all")
+		output, err := cmd.Output()
+		if err == nil {
+			lines := strings.Split(string(output), "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.Contains(line, "DNS Servers") || strings.Contains(line, "DNS 服务器") {
+					parts := strings.SplitN(line, ":", 2)
+					if len(parts) == 2 {
+						servers := strings.TrimSpace(parts[1])
+						if servers != "" {
+							dnsServers = append(dnsServers, servers)
 						}
 					}
 				}
-				// 如果找到了DNS服务器，就跳出循环
+			}
+		}
+	case "linux", "darwin":
+		// Linux/macOS: 解析resolv.conf文件
+		resolvConfPaths := []string{"/etc/resolv.conf"}
+		if runtime.GOOS == "darwin" {
+			// macOS有时会使用不同的resolv.conf位置
+			resolvConfPaths = append(resolvConfPaths, "/private/etc/resolv.conf")
+		}
+
+		// 尝试所有可能的文件位置
+		for _, path := range resolvConfPaths {
+			if _, err := os.Stat(path); err == nil {
+				// 文件存在
+				data, err := os.ReadFile(path)
+				if err == nil {
+					lines := strings.Split(string(data), "\n")
+					for _, line := range lines {
+						line = strings.TrimSpace(line)
+						if strings.HasPrefix(line, "nameserver") {
+							parts := strings.Fields(line)
+							if len(parts) >= 2 {
+								dnsServers = append(dnsServers, parts[1])
+							}
+						}
+					}
+				}
+				// 如果找到了DNS服务器，停止搜索
 				if len(dnsServers) > 0 {
 					break
 				}
 			}
 		}
-	}
 
-	// 如果上面的方法没有找到DNS服务器，则使用一些常见的默认DNS
-	if len(dnsServers) == 0 {
-		// 尝试使用常见的DNS服务器进行简单的连通性测试
-		commonDNS := []string{"8.8.8.8", "8.8.4.4", "1.1.1.1", "114.114.114.114"}
-		for _, dns := range commonDNS {
-			d := net.Dialer{Timeout: 500 * time.Millisecond}
-			conn, err := d.Dial("udp", dns+":53")
-			if err == nil {
-				conn.Close()
-				dnsServers = append(dnsServers, dns)
-				break
+		// 如果没有找到DNS服务器，尝试使用systemd-resolve命令
+		if len(dnsServers) == 0 {
+			if runtime.GOOS == "linux" {
+				cmd := exec.Command("systemd-resolve", "--status")
+				output, err := cmd.Output()
+				if err == nil {
+					lines := strings.Split(string(output), "\n")
+					inDNSSection := false
+					for _, line := range lines {
+						line = strings.TrimSpace(line)
+						if strings.Contains(line, "DNS Servers:") {
+							inDNSSection = true
+							continue
+						}
+						if inDNSSection && strings.HasPrefix(line, "        ") {
+							// DNS服务器行通常会有缩进
+							dnsServers = append(dnsServers, strings.TrimSpace(line))
+						} else if inDNSSection && line == "" {
+							inDNSSection = false
+						}
+					}
+				}
 			}
 		}
 	}
 
-	// 如果还是没有找到可用的DNS服务器，添加一个回退选项
+	// 如果所有方法都失败，使用公共DNS服务器作为回退
 	if len(dnsServers) == 0 {
-		dnsServers = append(dnsServers, "未知DNS服务器")
+		// 使用Google和Cloudflare DNS作为备选
+		dnsServers = []string{"8.8.8.8", "1.1.1.1"}
 	}
 
 	return dnsServers
 }
 
-// 创建自定义DNS解析器
+// 创建自定义解析器
 func createResolver(dnsServer string) *net.Resolver {
 	if dnsServer == "" {
 		return net.DefaultResolver
 	}
 
-	// 确保DNS服务器包含端口
-	if _, _, err := net.SplitHostPort(dnsServer); err != nil {
+	// 检查dnsServer是否包含端口号
+	if !strings.Contains(dnsServer, ":") {
 		dnsServer = dnsServer + ":53"
 	}
 
-	return &net.Resolver{
+	// 创建一个自定义解析器，指向特定的DNS服务器
+	r := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{
+			dialer := net.Dialer{
 				Timeout: time.Second * 10,
 			}
-			return d.DialContext(ctx, "udp", dnsServer)
+			return dialer.DialContext(ctx, "udp", dnsServer)
 		},
 	}
+	return r
 }
 
-// LookupIP 查询域名对应的IP地址
+// LookupIP 查询域名的A和AAAA记录
 func LookupIP(domain string, dnsServer string) (DNSQueryResult, error) {
 	result := DNSQueryResult{
-		Domain:  domain,
-		Records: []DNSRecord{},
+		Domain: domain,
 	}
 
-	var ips []net.IP
-	var err error
-
-	if dnsServer == "" {
-		// 使用系统默认DNS，获取系统DNS服务器信息
-		systemDNS := GetSystemDNSServers()
-		result.Method = "host"
-		if len(systemDNS) > 0 {
-			result.ServerUsed = strings.Join(systemDNS, ", ")
-		} else {
-			result.ServerUsed = "系统DNS"
-		}
-		ips, err = net.LookupIP(domain)
-	} else {
-		// 使用指定的DNS服务器
-		result.Method = "dns"
+	// 创建解析器
+	resolver := createResolver(dnsServer)
+	if dnsServer != "" {
 		result.ServerUsed = dnsServer
-		resolver := createResolver(dnsServer)
-		ips, err = resolver.LookupIP(context.Background(), "ip", domain)
+		result.Method = "dns"
+	} else {
+		result.Method = "host"
 	}
 
+	// 查询IP地址
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ips, err := resolver.LookupIP(ctx, "ip", domain)
 	if err != nil {
-		result.Error = fmt.Sprintf("IP地址查询失败: %v", err)
+		result.Error = fmt.Sprintf("查询失败: %v", err)
 		return result, err
 	}
 
+	// 将IP地址添加到结果中
 	for _, ip := range ips {
-		ipType := "IPv4"
+		recordType := "A"
 		if ip.To4() == nil {
-			ipType = "IPv6"
+			recordType = "AAAA"
 		}
 		result.Records = append(result.Records, DNSRecord{
-			Type:  ipType,
+			Type:  recordType,
 			Value: ip.String(),
 		})
 	}
@@ -181,40 +191,33 @@ func LookupIP(domain string, dnsServer string) (DNSQueryResult, error) {
 // LookupMX 查询域名的MX记录
 func LookupMX(domain string, dnsServer string) (DNSQueryResult, error) {
 	result := DNSQueryResult{
-		Domain:  domain,
-		Records: []DNSRecord{},
+		Domain: domain,
 	}
 
-	var mxs []*net.MX
-	var err error
-
-	if dnsServer == "" {
-		// 使用系统默认DNS，获取系统DNS服务器信息
-		systemDNS := GetSystemDNSServers()
-		result.Method = "host"
-		if len(systemDNS) > 0 {
-			result.ServerUsed = strings.Join(systemDNS, ", ")
-		} else {
-			result.ServerUsed = "系统DNS"
-		}
-		mxs, err = net.LookupMX(domain)
-	} else {
-		// 使用指定的DNS服务器
-		result.Method = "dns"
+	// 创建解析器
+	resolver := createResolver(dnsServer)
+	if dnsServer != "" {
 		result.ServerUsed = dnsServer
-		resolver := createResolver(dnsServer)
-		mxs, err = resolver.LookupMX(context.Background(), domain)
+		result.Method = "dns"
+	} else {
+		result.Method = "host"
 	}
 
+	// 查询MX记录
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	mxs, err := resolver.LookupMX(ctx, domain)
 	if err != nil {
-		result.Error = fmt.Sprintf("MX记录查询失败: %v", err)
+		result.Error = fmt.Sprintf("查询失败: %v", err)
 		return result, err
 	}
 
+	// 将MX记录添加到结果中
 	for _, mx := range mxs {
 		result.Records = append(result.Records, DNSRecord{
 			Type:  "MX",
-			Value: fmt.Sprintf("%s (优先级: %d)", mx.Host, mx.Pref),
+			Value: fmt.Sprintf("%d %s", mx.Pref, mx.Host),
 		})
 	}
 
@@ -224,36 +227,29 @@ func LookupMX(domain string, dnsServer string) (DNSQueryResult, error) {
 // LookupNS 查询域名的NS记录
 func LookupNS(domain string, dnsServer string) (DNSQueryResult, error) {
 	result := DNSQueryResult{
-		Domain:  domain,
-		Records: []DNSRecord{},
+		Domain: domain,
 	}
 
-	var nss []*net.NS
-	var err error
-
-	if dnsServer == "" {
-		// 使用系统默认DNS，获取系统DNS服务器信息
-		systemDNS := GetSystemDNSServers()
-		result.Method = "host"
-		if len(systemDNS) > 0 {
-			result.ServerUsed = strings.Join(systemDNS, ", ")
-		} else {
-			result.ServerUsed = "系统DNS"
-		}
-		nss, err = net.LookupNS(domain)
-	} else {
-		// 使用指定的DNS服务器
-		result.Method = "dns"
+	// 创建解析器
+	resolver := createResolver(dnsServer)
+	if dnsServer != "" {
 		result.ServerUsed = dnsServer
-		resolver := createResolver(dnsServer)
-		nss, err = resolver.LookupNS(context.Background(), domain)
+		result.Method = "dns"
+	} else {
+		result.Method = "host"
 	}
 
+	// 查询NS记录
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	nss, err := resolver.LookupNS(ctx, domain)
 	if err != nil {
-		result.Error = fmt.Sprintf("NS记录查询失败: %v", err)
+		result.Error = fmt.Sprintf("查询失败: %v", err)
 		return result, err
 	}
 
+	// 将NS记录添加到结果中
 	for _, ns := range nss {
 		result.Records = append(result.Records, DNSRecord{
 			Type:  "NS",
@@ -267,36 +263,29 @@ func LookupNS(domain string, dnsServer string) (DNSQueryResult, error) {
 // LookupTXT 查询域名的TXT记录
 func LookupTXT(domain string, dnsServer string) (DNSQueryResult, error) {
 	result := DNSQueryResult{
-		Domain:  domain,
-		Records: []DNSRecord{},
+		Domain: domain,
 	}
 
-	var txts []string
-	var err error
-
-	if dnsServer == "" {
-		// 使用系统默认DNS，获取系统DNS服务器信息
-		systemDNS := GetSystemDNSServers()
-		result.Method = "host"
-		if len(systemDNS) > 0 {
-			result.ServerUsed = strings.Join(systemDNS, ", ")
-		} else {
-			result.ServerUsed = "系统DNS"
-		}
-		txts, err = net.LookupTXT(domain)
-	} else {
-		// 使用指定的DNS服务器
-		result.Method = "dns"
+	// 创建解析器
+	resolver := createResolver(dnsServer)
+	if dnsServer != "" {
 		result.ServerUsed = dnsServer
-		resolver := createResolver(dnsServer)
-		txts, err = resolver.LookupTXT(context.Background(), domain)
+		result.Method = "dns"
+	} else {
+		result.Method = "host"
 	}
 
+	// 查询TXT记录
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	txts, err := resolver.LookupTXT(ctx, domain)
 	if err != nil {
-		result.Error = fmt.Sprintf("TXT记录查询失败: %v", err)
+		result.Error = fmt.Sprintf("查询失败: %v", err)
 		return result, err
 	}
 
+	// 将TXT记录添加到结果中
 	for _, txt := range txts {
 		result.Records = append(result.Records, DNSRecord{
 			Type:  "TXT",
@@ -328,44 +317,6 @@ func QueryDNS(domain string, dnsServer string) map[string]DNSQueryResult {
 	results["TXT"] = txtResult
 
 	return results
-}
-
-// getWindowsDNSServers 使用Windows API获取DNS服务器
-// 这个函数需要在文件末尾添加，在package作用域内
-func getWindowsDNSServers() ([]string, error) {
-	var dnsServers []string
-
-	// 使用WMI查询获取网络适配器配置信息
-	type NetworkAdapterConfiguration struct {
-		DNSServerSearchOrder []string
-	}
-
-	var nacs []NetworkAdapterConfiguration
-
-	// 使用go-wmi包查询网络适配器配置
-	query := "SELECT DNSServerSearchOrder FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled = TRUE"
-
-	err := wmi.Query(query, &nacs)
-	if err != nil {
-		return nil, fmt.Errorf("WMI查询失败: %v", err)
-	}
-
-	// 从查询结果中提取DNS服务器信息
-	for _, config := range nacs {
-		if len(config.DNSServerSearchOrder) > 0 {
-			for _, dns := range config.DNSServerSearchOrder {
-				if dns != "" && !contains(dnsServers, dns) {
-					dnsServers = append(dnsServers, dns)
-				}
-			}
-		}
-	}
-
-	if len(dnsServers) == 0 {
-		return nil, fmt.Errorf("未找到DNS服务器信息")
-	}
-
-	return dnsServers, nil
 }
 
 // contains 检查字符串slice是否包含特定值
