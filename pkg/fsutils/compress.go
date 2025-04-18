@@ -12,6 +12,7 @@ import (
 
 	"github.com/dsnet/compress/bzip2"
 	"github.com/nwaples/rardecode"
+	"github.com/saracen/go7z"
 	"github.com/ulikunitz/xz"
 )
 
@@ -19,14 +20,15 @@ import (
 type CompressFormat string
 
 const (
-	ZIP    CompressFormat = "zip"
-	TARGZ  CompressFormat = "tar.gz"
-	TARBZ2 CompressFormat = "tar.bz2"
-	TARXZ  CompressFormat = "tar.xz"
-	GZ     CompressFormat = "gz"
-	BZ2    CompressFormat = "bz2"
-	XZ     CompressFormat = "xz"
-	RAR    CompressFormat = "rar" // 仅支持解压缩
+	ZIP      CompressFormat = "zip"
+	TARGZ    CompressFormat = "tar.gz"
+	TARBZ2   CompressFormat = "tar.bz2"
+	TARXZ    CompressFormat = "tar.xz"
+	GZ       CompressFormat = "gz"
+	BZ2      CompressFormat = "bz2"
+	XZ       CompressFormat = "xz"
+	RAR      CompressFormat = "rar" // 仅支持解压缩
+	SEVENZIP CompressFormat = "7z"
 )
 
 // CompressOptions 定义压缩选项
@@ -70,6 +72,8 @@ func Compress(src string, dst string, options CompressOptions) error {
 		return compressXz(src, dst)
 	case RAR:
 		return fmt.Errorf("RAR格式仅支持解压缩，不支持压缩（因为是专有格式）")
+	case SEVENZIP:
+		return compress7z()
 	default:
 		return fmt.Errorf("不支持的压缩格式: %s", options.Format)
 	}
@@ -105,6 +109,8 @@ func Decompress(src string, dst string) error {
 		return decompressXz(src, dst)
 	case strings.HasSuffix(src, ".rar"):
 		return decompressRar(src, dst)
+	case strings.HasSuffix(src, ".7z"):
+		return decompress7z(src, dst)
 	default:
 		return fmt.Errorf("无法识别的压缩格式")
 	}
@@ -492,6 +498,12 @@ func compressXz(src, dst string) error {
 	return err
 }
 
+// compress7z 创建7z压缩文件
+func compress7z() error {
+	// 目前 go7z 库不支持写入操作
+	return fmt.Errorf("当前版本暂不支持创建7z文件（因为使用的库仅支持解压缩），请使用其他格式如 zip 或 tar.gz")
+}
+
 // decompressZip 解压zip文件
 func decompressZip(src, dst string) error {
 	reader, err := zip.OpenReader(src)
@@ -822,6 +834,80 @@ func decompressRar(src, dst string) error {
 		// 复制文件内容
 		_, err = io.Copy(file, rr)
 		file.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// decompress7z 解压7z文件
+func decompress7z(src, dst string) error {
+	// 打开源文件
+	sz, err := go7z.OpenReader(src)
+	if err != nil {
+		return fmt.Errorf("无法读取7z文件: %v", err)
+	}
+	defer sz.Close()
+
+	// 获取目标目录的绝对路径
+	dstAbs, err := filepath.Abs(dst)
+	if err != nil {
+		return err
+	}
+
+	// 遍历并解压所有文件
+	for {
+		hdr, err := sz.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		// 清理文件路径，移除开头的 / 或 ../
+		cleanedPath := filepath.Clean(hdr.Name)
+		if cleanedPath == "." || strings.HasPrefix(cleanedPath, ".."+string(os.PathSeparator)) {
+			continue // 跳过可疑路径
+		}
+
+		path := filepath.Join(dst, cleanedPath)
+
+		// 获取最终路径的绝对路径
+		pathAbs, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+
+		// 确保解压的文件路径在目标目录内
+		if !strings.HasPrefix(pathAbs, dstAbs) {
+			return fmt.Errorf("非法的文件路径: %s", hdr.Name)
+		}
+
+		// 如果是目录
+		if strings.HasSuffix(hdr.Name, "/") {
+			if err := os.MkdirAll(path, 0755); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// 确保父目录存在
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+
+		// 创建文件
+		outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			return err
+		}
+
+		// 复制内容
+		_, err = io.Copy(outFile, sz)
+		outFile.Close()
 		if err != nil {
 			return err
 		}
