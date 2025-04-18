@@ -16,6 +16,5 @@ var FsCmd = &cobra.Command{
 }
 
 func init() {
-	// 添加子命令
-	FsCmd.AddCommand(treeCmd)
+	// 子命令在各自文件的init函数中添加到FsCmd
 }

@@ -18,7 +18,4 @@ var TextCmd = &cobra.Command{
 
 func init() {
 	// 添加子命令
-	TextCmd.AddCommand(textGrepCmd)
-	TextCmd.AddCommand(textReplaceCmd)
-	TextCmd.AddCommand(textFilterCmd)
 }

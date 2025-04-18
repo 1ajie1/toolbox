@@ -1,4 +1,0 @@
-1 apple 5.99
-2 banana 3.45
-3 orange 4.50
-4 grape 8.99

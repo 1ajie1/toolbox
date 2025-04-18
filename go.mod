@@ -5,13 +5,16 @@ go 1.23.4
 require (
 	github.com/StackExchange/wmi v1.2.1
 	github.com/beevik/etree v1.5.1
+	github.com/dsnet/compress v0.0.1
 	github.com/fatih/color v1.18.0
 	github.com/google/gopacket v1.1.19
+	github.com/nwaples/rardecode v1.1.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.9.1
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/pretty v1.2.1
+	github.com/ulikunitz/xz v0.5.12
 	golang.org/x/net v0.39.0
 	gopkg.in/yaml.v3 v3.0.1
 )
