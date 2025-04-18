@@ -35,6 +35,7 @@ toolbox
 │   ├── ipinfo      获取IP地址信息
 │   ├── speedtest   执行网络速度测试
 │   ├── traceroute  执行路由跟踪
+│   ├── cert        证书的检查与生成
 │   └── sniff       执行网络抓包
 │
 ├── process     进程管理工具
@@ -45,6 +46,8 @@ toolbox
 │   └── children    列出指定进程的子进程
 │
 ├── fs          文件系统工具集
+│   ├── compress    压缩或解压缩文件
+│   ├── find        搜索文件和目录
 │   └── tree        显示目录结构
 │
 ├── fmt         格式化数据文件或文本内容
