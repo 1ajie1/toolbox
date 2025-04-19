@@ -59,5 +59,7 @@ toolbox
 │   ├── replace     文本替换
 │   └── filter      文本过滤
 │
+├── version      输出版本信息
+│
 └── help        显示帮助信息
 ```

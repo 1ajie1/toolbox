@@ -10,6 +10,7 @@ import (
 	"toolbox/cmd/cli/cmd/network"
 	"toolbox/cmd/cli/cmd/process"
 	"toolbox/cmd/cli/cmd/text"
+	"toolbox/cmd/cli/cmd/version"
 
 	"github.com/spf13/cobra"
 )
@@ -19,29 +20,9 @@ var programName string
 
 // rootCmd 表示基础命令
 var rootCmd = &cobra.Command{
-	Use:   "%[1]s",
-	Short: "网络诊断和数据处理工具箱",
-	Long: `网络诊断和数据处理工具箱是一个用Go语言编写的运维工具集合，
-提供了多种网络诊断、数据格式化和管理功能。
-
-使用方法示例:
-  %[1]s network ping example.com
-  %[1]s network portscan example.com --start-port 80 --end-port 100
-  %[1]s network dns example.com --type mx
-  %[1]s network traceroute example.com
-  %[1]s network speedtest
-  %[1]s network ipinfo 8.8.8.8
-  %[1]s network sniff eth0 --filter "tcp and port 80"
-  %[1]s network sniff --list-interfaces
-  %[1]s fmt data.json --pretty
-  %[1]s fmt config.xml --pretty --output formatted.xml
-  %[1]s text grep "error" log.txt
-  %[1]s text replace "old" "new" file.txt
-  %[1]s text filter '$1 > 100' data.txt
-  %[1]s fs tree /path/to/dir -d 2 -a
-  %[1]s process list
-  %[1]s process list --filter chrome
-  %[1]s process list --sort cpu`,
+	Use:   "toolbox",
+	Short: "一个功能丰富的命令行工具箱",
+	Long:  `Toolbox 是一个集成了多种实用功能的命令行工具箱，具体功能使用 -h 查看`,
 }
 
 // Execute 将所有子命令添加到根命令并设置标志。
@@ -92,4 +73,5 @@ func init() {
 	rootCmd.AddCommand(fs.FsCmd)
 	rootCmd.AddCommand(text.TextCmd)
 	rootCmd.AddCommand(process.ProcessCmd)
+	rootCmd.AddCommand(version.VersionCmd)
 }
