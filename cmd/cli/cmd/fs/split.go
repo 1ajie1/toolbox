@@ -42,9 +42,7 @@ var splitCmd = &cobra.Command{
 				// 如果未指定输出文件，使用目录名推测
 				dir := filepath.Clean(path)
 				base := filepath.Base(dir)
-				if strings.HasSuffix(base, "_chunks") {
-					base = strings.TrimSuffix(base, "_chunks")
-				}
+				base = strings.TrimSuffix(base, "_chunks")
 				// 尝试确定文件扩展名
 				files, err := filepath.Glob(filepath.Join(dir, "chunk_001*"))
 				if err == nil && len(files) > 0 {

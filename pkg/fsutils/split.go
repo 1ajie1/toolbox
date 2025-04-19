@@ -57,6 +57,12 @@ func SplitArchive(opts *SplitOptions) error {
 		return err
 	}
 
+	// 获取输出目录的绝对路径
+	outputAbs, err := filepath.Abs(opts.OutputDir)
+	if err != nil {
+		return fmt.Errorf("获取输出目录绝对路径失败: %v", err)
+	}
+
 	// 创建输出目录
 	if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %v", err)
@@ -82,11 +88,15 @@ func SplitArchive(opts *SplitOptions) error {
 		return fmt.Errorf("不支持的压缩格式: %v", opts.CompressType)
 	}
 
+	// 创建一个自定义的压缩选项，排除输出目录
+	compressOpts := CompressOptions{
+		Format:       opts.CompressType,
+		Level:        6,                   // 使用默认压缩级别
+		ExcludePaths: []string{outputAbs}, // 排除输出目录
+	}
+
 	// 先将目录压缩
-	if err := Compress(opts.SourceDir, tempArchive, CompressOptions{
-		Format: opts.CompressType,
-		Level:  6, // 使用默认压缩级别
-	}); err != nil {
+	if err := Compress(opts.SourceDir, tempArchive, compressOpts); err != nil {
 		return fmt.Errorf("压缩失败: %v", err)
 	}
 	defer os.Remove(tempArchive) // 最后清理临时文件

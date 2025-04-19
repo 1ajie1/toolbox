@@ -33,8 +33,36 @@ const (
 
 // CompressOptions 定义压缩选项
 type CompressOptions struct {
-	Format CompressFormat // 压缩格式
-	Level  int            // 压缩级别（1-9，0表示默认）
+	Format       CompressFormat // 压缩格式
+	Level        int            // 压缩级别（1-9，0表示默认）
+	ExcludePaths []string       // 要排除的路径列表
+}
+
+// shouldExclude 检查路径是否应该被排除
+func shouldExclude(path string, excludePaths []string) bool {
+	if len(excludePaths) == 0 {
+		return false
+	}
+
+	// 获取路径的绝对路径
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+
+	for _, excludePath := range excludePaths {
+		// 获取排除路径的绝对路径
+		absExcludePath, err := filepath.Abs(excludePath)
+		if err != nil {
+			continue
+		}
+
+		// 检查路径是否匹配或是排除路径的子目录
+		if absPath == absExcludePath || strings.HasPrefix(absPath, absExcludePath+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // Compress 压缩文件或目录
@@ -48,13 +76,13 @@ func Compress(src string, dst string, options CompressOptions) error {
 	// 根据不同格式调用相应的压缩函数
 	switch options.Format {
 	case ZIP:
-		return compressZip(src, dst, srcInfo.IsDir())
+		return compressZip(src, dst, srcInfo.IsDir(), options)
 	case TARGZ:
-		return compressTarGz(src, dst, srcInfo.IsDir())
+		return compressTarGz(src, dst, srcInfo.IsDir(), options)
 	case TARBZ2:
-		return compressTarBz2(src, dst, srcInfo.IsDir())
+		return compressTarBz2(src, dst, srcInfo.IsDir(), options)
 	case TARXZ:
-		return compressTarXz(src, dst, srcInfo.IsDir())
+		return compressTarXz(src, dst, srcInfo.IsDir(), options)
 	case GZ:
 		if srcInfo.IsDir() {
 			return fmt.Errorf("gz格式不支持压缩目录")
@@ -117,7 +145,7 @@ func Decompress(src string, dst string) error {
 }
 
 // compressZip 创建zip压缩文件
-func compressZip(src, dst string, isDir bool) error {
+func compressZip(src, dst string, isDir bool, options CompressOptions) error {
 	zipfile, err := os.Create(dst)
 	if err != nil {
 		return err
@@ -132,6 +160,14 @@ func compressZip(src, dst string, isDir bool) error {
 		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
+			}
+
+			// 检查是否应该排除此路径
+			if shouldExclude(path, options.ExcludePaths) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
 			// 获取相对路径
@@ -165,11 +201,18 @@ func compressZip(src, dst string, isDir bool) error {
 				}
 				defer file.Close()
 				_, err = io.Copy(writer, file)
+				if err != nil {
+					return err
+				}
 			}
 			return err
 		})
 	} else {
 		// 压缩单个文件
+		if shouldExclude(src, options.ExcludePaths) {
+			return nil
+		}
+
 		file, err := os.Open(src)
 		if err != nil {
 			return err
@@ -187,7 +230,7 @@ func compressZip(src, dst string, isDir bool) error {
 }
 
 // compressTarGz 创建tar.gz压缩文件
-func compressTarGz(src, dst string, isDir bool) error {
+func compressTarGz(src, dst string, isDir bool, options CompressOptions) error {
 	file, err := os.Create(dst)
 	if err != nil {
 		return err
@@ -205,6 +248,14 @@ func compressTarGz(src, dst string, isDir bool) error {
 		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
+			}
+
+			// 检查是否应该排除此路径
+			if shouldExclude(path, options.ExcludePaths) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
 			// 获取相对路径
@@ -239,6 +290,10 @@ func compressTarGz(src, dst string, isDir bool) error {
 		})
 	} else {
 		// 压缩单个文件
+		if shouldExclude(src, options.ExcludePaths) {
+			return nil
+		}
+
 		file, err := os.Open(src)
 		if err != nil {
 			return err
@@ -266,7 +321,7 @@ func compressTarGz(src, dst string, isDir bool) error {
 }
 
 // compressTarBz2 创建tar.bz2压缩文件
-func compressTarBz2(src, dst string, isDir bool) error {
+func compressTarBz2(src, dst string, isDir bool, options CompressOptions) error {
 	file, err := os.Create(dst)
 	if err != nil {
 		return err
@@ -287,6 +342,14 @@ func compressTarBz2(src, dst string, isDir bool) error {
 		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
+			}
+
+			// 检查是否应该排除此路径
+			if shouldExclude(path, options.ExcludePaths) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
 			// 获取相对路径
@@ -321,6 +384,10 @@ func compressTarBz2(src, dst string, isDir bool) error {
 		})
 	} else {
 		// 压缩单个文件
+		if shouldExclude(src, options.ExcludePaths) {
+			return nil
+		}
+
 		file, err := os.Open(src)
 		if err != nil {
 			return err
@@ -348,7 +415,7 @@ func compressTarBz2(src, dst string, isDir bool) error {
 }
 
 // compressTarXz 创建tar.xz压缩文件
-func compressTarXz(src, dst string, isDir bool) error {
+func compressTarXz(src, dst string, isDir bool, options CompressOptions) error {
 	file, err := os.Create(dst)
 	if err != nil {
 		return err
@@ -369,6 +436,14 @@ func compressTarXz(src, dst string, isDir bool) error {
 		return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
+			}
+
+			// 检查是否应该排除此路径
+			if shouldExclude(path, options.ExcludePaths) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
 			// 获取相对路径
@@ -403,6 +478,10 @@ func compressTarXz(src, dst string, isDir bool) error {
 		})
 	} else {
 		// 压缩单个文件
+		if shouldExclude(src, options.ExcludePaths) {
+			return nil
+		}
+
 		file, err := os.Open(src)
 		if err != nil {
 			return err
@@ -431,6 +510,10 @@ func compressTarXz(src, dst string, isDir bool) error {
 
 // compressGz 创建gz压缩文件
 func compressGz(src, dst string) error {
+	if shouldExclude(src, nil) {
+		return nil
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -452,6 +535,10 @@ func compressGz(src, dst string) error {
 
 // compressBz2 创建bz2压缩文件
 func compressBz2(src, dst string) error {
+	if shouldExclude(src, nil) {
+		return nil
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -476,6 +563,10 @@ func compressBz2(src, dst string) error {
 
 // compressXz 创建xz压缩文件
 func compressXz(src, dst string) error {
+	if shouldExclude(src, nil) {
+		return nil
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
