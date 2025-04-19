@@ -33,7 +33,14 @@ var dnsCmd = &cobra.Command{
 		recordType, _ := cmd.Flags().GetString("type")
 		dnsServer, _ := cmd.Flags().GetString("dns-server")
 
-		executeDNSQuery(domain, recordType, dnsServer)
+		if dnsServer == "" {
+			Server := netdiag.GetSystemDNSServers()
+			for _, server := range Server {
+				executeDNSQuery(domain, recordType, server)
+			}
+		} else {
+			executeDNSQuery(domain, recordType, dnsServer)
+		}
 	},
 }
 

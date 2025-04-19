@@ -39,6 +39,7 @@ func GetSystemDNSServers() []string {
 			return servers
 		}
 
+		fmt.Println("api方法失败, 回退到使用ipconfig命令")
 		// 如果API方法失败，回退到使用ipconfig命令
 		cmd := exec.Command("ipconfig", "/all")
 		output, err := cmd.Output()
